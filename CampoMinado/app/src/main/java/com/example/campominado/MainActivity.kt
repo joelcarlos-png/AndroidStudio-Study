@@ -20,8 +20,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.campominado.ui.theme.CampoMinadoTheme
+import kotlin.concurrent.timer
 import kotlin.math.max
 import kotlin.random.Random
+import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
     private var tamMatrix: Int = 10
@@ -29,6 +31,10 @@ class MainActivity : ComponentActivity() {
     private var campoRevelado by mutableStateOf(Array(tamMatrix) { BooleanArray(tamMatrix) })
     private var perdeu by mutableStateOf(false)
     private var ganhou by mutableStateOf(false)
+    private var qntPartidas by mutableStateOf(value = 0)
+    private var cliques by mutableStateOf(0)
+    private var tempoSegundos by mutableStateOf(0)
+    private var iniciou by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,6 +43,13 @@ class MainActivity : ComponentActivity() {
         initCampo()
 
         setContent {
+            LaunchedEffect(qntPartidas, iniciou, ganhou, perdeu) {
+                while (iniciou && !ganhou && !perdeu){
+                    delay(100)
+                    tempoSegundos++
+                }
+            }
+
             CampoMinadoTheme {
                 var refreshTick by remember { mutableIntStateOf(0) }
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
@@ -48,6 +61,9 @@ class MainActivity : ComponentActivity() {
                             perdeu = perdeu,
                             ganhou = ganhou,
                             tick = refreshTick,
+                            qntPartidas = qntPartidas,
+                            cliques = cliques,
+                            tempoSegundos = tempoSegundos,
                             onCliqueCelula = { linha, coluna ->
                                 revelarCelula(linha, coluna)
                                 refreshTick++
@@ -86,10 +102,15 @@ class MainActivity : ComponentActivity() {
                 if (campoRevelado[i][j] == true) qntRevelado++
             }
         }
-        if (qntRevelado == (totalCelulas - qntBomba)) ganhou = true
+        if (qntRevelado == (totalCelulas - qntBomba)) {
+            ganhou = true
+            qntPartidas++
+        }
     }
 
     private fun revelarCelula(linha: Int, coluna: Int) {
+        cliques++
+        iniciou = true
         if (perdeu || ganhou) return
         if (linha !in 0..<tamMatrix || coluna !in 0..<tamMatrix) return
         if (campoRevelado[linha][coluna]) return
@@ -101,6 +122,7 @@ class MainActivity : ComponentActivity() {
             val v = campo[l][c]
             if (v == -1) {
                 perdeu = true
+                qntPartidas++
             } else if (v == 0) {
                 for (v1 in -1..1) {
                     for (v2 in -1..1) {
@@ -135,6 +157,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun initCampo() {
+        cliques = 0
+        tempoSegundos = 0
+        iniciou = false
         this.perdeu = false
         this.ganhou = false
         this.campo = Array(tamMatrix) {IntArray(tamMatrix)}
@@ -211,9 +236,13 @@ fun TelaCampoMinado(
     perdeu: Boolean,
     ganhou: Boolean,
     tick: Int,
+    qntPartidas: Int,
+    cliques : Int,
+    tempoSegundos : Int,
     onCliqueCelula: (Int, Int) -> Unit,
     onReiniciar: () -> Unit
 ) {
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -224,7 +253,25 @@ fun TelaCampoMinado(
         when {
             perdeu -> Text("💥 VOCÊ PERDEU!", color = Color.Red, fontSize = 24.sp, fontWeight = FontWeight.Bold)
             ganhou -> Text("🏆 PARABÉNS, VOCÊ GANHOU!", color = Color(0xFF388E3C), fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            else -> Text("💣 Campo Minado", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            else -> Text("💣 Campo Minado | Tentativas: " + qntPartidas, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        }
+
+        Box(
+            modifier = Modifier.padding(top = 15.dp),
+            contentAlignment = Alignment.TopCenter,
+        ){
+            Text("Cliques: $cliques", fontSize = 16.sp)
+        }
+
+        Box(
+            modifier = Modifier.padding(top = 15.dp),
+            contentAlignment = Alignment.TopCenter
+        ){
+            val tempo = tempoSegundos / 10
+            val minutos = tempo / 60
+            val segundos = tempo % 60
+            val milesegundos = tempoSegundos % 10
+            Text(text = "%02d:%02d:%02d".format(minutos,segundos,milesegundos), fontSize = 40.sp)
         }
 
         Spacer(modifier = Modifier.height(20.dp))

@@ -2,7 +2,6 @@ package com.example.teste1
 
 import android.os.Build
 import android.os.Bundle
-import android.util.Log.i
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
