@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.Button
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -35,6 +36,9 @@ class MainActivity : ComponentActivity() {
     private var cliques by mutableStateOf(0)
     private var tempoSegundos by mutableStateOf(0)
     private var iniciou by mutableStateOf(false)
+    private var melhorTempo by mutableStateOf(0)
+    private var melhorCliques by mutableStateOf(0)
+    private var primeiraVez by mutableStateOf(true)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -64,6 +68,8 @@ class MainActivity : ComponentActivity() {
                             qntPartidas = qntPartidas,
                             cliques = cliques,
                             tempoSegundos = tempoSegundos,
+                            melhorTempo = melhorTempo,
+                            melhorCliques = melhorCliques,
                             onCliqueCelula = { linha, coluna ->
                                 revelarCelula(linha, coluna)
                                 refreshTick++
@@ -105,6 +111,16 @@ class MainActivity : ComponentActivity() {
         if (qntRevelado == (totalCelulas - qntBomba)) {
             ganhou = true
             qntPartidas++
+            if(primeiraVez){
+                melhorTempo = tempoSegundos
+                melhorCliques = cliques
+                primeiraVez = false
+            }else {
+                if (tempoSegundos < melhorTempo) {
+                    melhorTempo = tempoSegundos
+                    melhorCliques = cliques
+                }
+            }
         }
     }
 
@@ -239,6 +255,8 @@ fun TelaCampoMinado(
     qntPartidas: Int,
     cliques : Int,
     tempoSegundos : Int,
+    melhorTempo : Int,
+    melhorCliques : Int,
     onCliqueCelula: (Int, Int) -> Unit,
     onReiniciar: () -> Unit
 ) {
@@ -251,16 +269,38 @@ fun TelaCampoMinado(
         verticalArrangement = Arrangement.Center
     ) {
         when {
-            perdeu -> Text("💥 VOCÊ PERDEU!", color = Color.Red, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            ganhou -> Text("🏆 PARABÉNS, VOCÊ GANHOU!", color = Color(0xFF388E3C), fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            else -> Text("💣 Campo Minado | Tentativas: " + qntPartidas, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            perdeu -> Text("💥 VOCÊ PERDEU!", color = Color.Red, fontSize = 34.sp, fontWeight = FontWeight.Bold)
+            ganhou -> Text("🏆 PARABÉNS, VOCÊ GANHOU!", color = Color(0xFF388E3C), fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            else -> Text("Campo Minado", fontSize = 34.sp, fontWeight = FontWeight.Bold)
         }
 
         Box(
-            modifier = Modifier.padding(top = 15.dp),
+            modifier = Modifier.padding(top = 10.dp)
+                .size(200.dp, 110.dp)
+                .border(1.dp, Color.DarkGray),
             contentAlignment = Alignment.TopCenter,
         ){
-            Text("Cliques: $cliques", fontSize = 16.sp)
+            val tempo = melhorTempo / 10
+            val minutos = tempo / 60
+            val segundos = tempo % 60
+            val milesegundos = tempoSegundos % 10
+            Text(text = "Melhor Tentativa",
+                modifier = Modifier.padding(top = 5.dp),
+                fontSize = 22.sp)
+            Text(text = "Tempo: %02d:%02d:%02d".format(minutos,segundos,milesegundos),
+                modifier = Modifier.padding(top = 40.dp)
+                    .padding(end = 25.dp),
+                fontSize = 18.sp)
+            Text(text = "Cliques: $melhorCliques",
+                modifier = Modifier.padding(top = 70.dp)
+                    .padding(end = 75.dp),
+                fontSize = 18.sp)
+        }
+        Box(
+            modifier = Modifier.padding(top = 10.dp),
+            contentAlignment = Alignment.TopCenter,
+        ){
+            Text("Tentativas: $qntPartidas\n  Cliques: $cliques", fontSize = 18.sp)
         }
 
         Box(
@@ -277,7 +317,7 @@ fun TelaCampoMinado(
         Spacer(modifier = Modifier.height(20.dp))
 
         for (i in 0 until tamMatrix) {
-            Row {
+            Row() {
                 for (j in 0 until tamMatrix) {
                     CelulaView(
                         valor = campo[i][j],
