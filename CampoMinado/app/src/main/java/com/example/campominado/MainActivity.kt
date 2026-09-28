@@ -1,33 +1,49 @@
 package com.example.campominado
 
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.selection.selectable
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.campominado.ui.theme.CampoMinadoTheme
-import kotlin.concurrent.timer
 import kotlin.math.max
 import kotlin.random.Random
 import kotlinx.coroutines.delay
-import androidx.compose.material3.OutlinedTextField
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import kotlin.time.Duration.Companion.milliseconds
+import java.io.File
+import org.json.JSONArray
+import org.json.JSONObject
+import java.time.LocalTime
 
 class MainActivity : ComponentActivity() {
+
+    data class resultado(
+        val hora: String,
+        val nome: String,
+        val tempo: String,
+        val tempoSeg : Int,
+        val cliques: Int
+    )
     private var tamMatrix: Int = 10
     private lateinit var campo : Array<IntArray>
     private var campoRevelado by mutableStateOf(Array(tamMatrix) { BooleanArray(tamMatrix) })
@@ -37,27 +53,64 @@ class MainActivity : ComponentActivity() {
     private var cliques by mutableStateOf(0)
     private var tempoSegundos by mutableStateOf(0)
     private var iniciou by mutableStateOf(false)
-    private var melhorTempo by mutableStateOf(0)
-    private var melhorCliques by mutableStateOf(0)
-    private var primeiraVez by mutableStateOf(true)
-    private var qntBombas by mutableStateOf(15)
+    private val ranking = mutableStateListOf<resultado>()
+    private var mostrarDialogNome by mutableStateOf(false)
+    private var nomeJogador by mutableStateOf("")
+    private var horaAtual by mutableStateOf("")
 
+    @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        carregarJson()
         initCampo()
 
         setContent {
+            LaunchedEffect(Unit) {
+                val format = DateTimeFormatter.ofPattern("HH:mm:ss")
+                while (true){
+                    delay(1000)
+                    horaAtual = LocalTime.now().format(format)
+                }
+            }
             LaunchedEffect(qntPartidas, iniciou, ganhou, perdeu) {
                 while (iniciou && !ganhou && !perdeu){
-                    delay(100)
+                    delay(100.milliseconds)
                     tempoSegundos++
                 }
             }
 
             CampoMinadoTheme {
-                var refreshTick by remember { mutableIntStateOf(0) }
+                if (mostrarDialogNome){
+                    AlertDialog(
+                        onDismissRequest = {},
+                        title = {
+                            Text("Voce Ganhou")
+                        },
+                        text = {
+                            OutlinedTextField(
+                                value = nomeJogador,
+                                onValueChange = {novoTexto -> nomeJogador = novoTexto},
+                                label = {
+                                    Text("Seu Nome")
+                                },
+                                singleLine = true
+                            )
+                        },
+                        confirmButton = {
+                            TextButton(
+                                enabled = nomeJogador.isNotBlank(),
+                                onClick = {
+                                    registrarResultado()
+                                }
+                            ) {
+                                Text("Salvar")
+                            }
+                        }
+                    )
+                }
+
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     Box(modifier = Modifier.padding(innerPadding)) {
                         TelaCampoMinado(
@@ -66,20 +119,16 @@ class MainActivity : ComponentActivity() {
                             campoRevelado = campoRevelado,
                             perdeu = perdeu,
                             ganhou = ganhou,
-                            tick = refreshTick,
                             qntPartidas = qntPartidas,
                             cliques = cliques,
                             tempoSegundos = tempoSegundos,
-                            melhorTempo = melhorTempo,
-                            melhorCliques = melhorCliques,
-                            qntBombas = qntBombas,
+                            ranking = ranking,
+                            horaAtual = horaAtual,
                             onCliqueCelula = { linha, coluna ->
                                 revelarCelula(linha, coluna)
-                                refreshTick++
                             },
                             onReiniciar = {
                                 initCampo()
-                                refreshTick++
                             }
                         )
                     }
@@ -88,6 +137,83 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun carregarJson(){
+        val arquivo = File(filesDir, "ranking.json")
+        if(!arquivo.exists())return
+
+        val listaJson = JSONArray(arquivo.readText())
+        val listaCarregada = mutableListOf<resultado>()
+
+        for(i in 0 until listaJson.length()){
+            val objeto = listaJson.getJSONObject(i)
+
+            listaCarregada.add(
+                resultado(
+                    hora = objeto.getString("hora"),
+                    nome = objeto.getString("nome"),
+                    tempo = objeto.getString("tempo"),
+                    tempoSeg = objeto.getInt("tempoSeg"),
+                    cliques = objeto.getInt("cliques")
+                )
+            )
+        }
+
+        ranking.clear()
+        ranking.addAll(
+            listaCarregada.sortedBy { it.tempoSeg }.take(10)
+        )
+    }
+
+    private fun salvarJson(){
+        val listaJson = JSONArray()
+
+        for(item in ranking){
+            val objeto = JSONObject().apply {
+                put("hora", item.hora)
+                put("nome", item.nome)
+                put("tempoSeg", item.tempoSeg)
+                put("tempo", item.tempo)
+                put("cliques", item.cliques)
+            }
+
+            listaJson.put(objeto)
+        }
+
+        val arquivo = File(filesDir, "ranking.json")
+        arquivo.writeText(listaJson.toString(2))
+    }
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun registrarResultado(){
+        val tempo = tempoSegundos / 10
+        val minutos = tempo / 60
+        val segundos = tempo % 60
+        val milesegundos = tempoSegundos % 10
+        var tempof = "%02d:%02d:%01d".format(minutos,segundos,milesegundos)
+
+        val format = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
+        val hora = LocalDateTime.now().format(format)
+
+        ranking.add(
+            resultado(
+                hora = hora,
+                nome = nomeJogador.trim(),
+                tempo = tempof,
+                tempoSeg = tempoSegundos,
+                cliques = cliques
+            )
+        )
+
+        ranking.sortBy { it.tempoSeg }
+        while (ranking.size > 10) {
+            ranking.removeAt(ranking.lastIndex)
+        }
+
+        salvarJson()
+
+        mostrarDialogNome = false
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
     fun verifGanhou() {
         val totalCelulas: Int = tamMatrix * tamMatrix
         val qntBomba = max(1, (totalCelulas * 15) / 100)
@@ -100,19 +226,13 @@ class MainActivity : ComponentActivity() {
         if (qntRevelado == (totalCelulas - qntBomba)) {
             ganhou = true
             qntPartidas++
-            if(primeiraVez){
-                melhorTempo = tempoSegundos
-                melhorCliques = cliques
-                primeiraVez = false
-            }else {
-                if (tempoSegundos < melhorTempo) {
-                    melhorTempo = tempoSegundos
-                    melhorCliques = cliques
-                }
-            }
+
+            nomeJogador = ""
+            mostrarDialogNome = true
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     private fun revelarCelula(linha: Int, coluna: Int) {
         cliques++
         iniciou = true
@@ -120,6 +240,7 @@ class MainActivity : ComponentActivity() {
         if (linha !in 0..<tamMatrix || coluna !in 0..<tamMatrix) return
         if (campoRevelado[linha][coluna]) return
         val novaMatriz = campoRevelado.map { it.clone() }.toTypedArray()
+
         fun abrir(l: Int, c: Int) {
             if (l !in 0..<tamMatrix || c !in 0..<tamMatrix) return
             if (novaMatriz[l][c]) return
@@ -136,6 +257,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+
         abrir(linha, coluna)
         this.campoRevelado = novaMatriz
         verifGanhou()
@@ -240,56 +362,78 @@ fun TelaCampoMinado(
     campoRevelado: Array<BooleanArray>,
     perdeu: Boolean,
     ganhou: Boolean,
-    tick: Int,
     qntPartidas: Int,
     cliques : Int,
+    ranking : List<MainActivity.resultado>,
     tempoSegundos : Int,
-    melhorTempo : Int,
-    melhorCliques : Int,
-    qntBombas : Int,
+    horaAtual : String,
     onCliqueCelula: (Int, Int) -> Unit,
     onReiniciar: () -> Unit
 ) {
+    var mostrarRanking by remember { mutableStateOf(false) }
 
-    var entrada by remember { mutableStateOf("") }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .padding(12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
+        Box(
+            modifier = Modifier
+        ){
+            Text("$horaAtual", fontSize = 22.sp, color = Color.Red)
+        }
         when {
             perdeu -> Text("💥 VOCÊ PERDEU!", color = Color.Red, fontSize = 34.sp, fontWeight = FontWeight.Bold)
-            ganhou -> Text("🏆 PARABÉNS, VOCÊ GANHOU!", color = Color(0xFF388E3C), fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            ganhou -> Text("🏆 PARABÉNS, VOCÊ GANHOU!", color = Color(0xFF388E3C), fontSize = 24.sp, fontWeight = FontWeight.Bold)
             else -> Text("Campo Minado", fontSize = 34.sp, fontWeight = FontWeight.Bold)
         }
 
-        Box(
-            modifier = Modifier.padding(top = 10.dp)
-                .size(200.dp, 110.dp)
-                .border(1.dp, Color.DarkGray),
-            contentAlignment = Alignment.TopCenter,
-        ){
-            val tempom = melhorTempo / 10
-            val minutosm = tempom / 60
-            val segundosm = tempom % 60
-            val milesegundosm = melhorTempo % 10
-            Text(text = "Melhor Tentativa",
-                modifier = Modifier.padding(top = 5.dp),
-                fontSize = 22.sp)
-            Text(text = "Tempo: %02d:%02d:%01d".format(minutosm,segundosm,milesegundosm),
-                modifier = Modifier.padding(top = 40.dp)
-                    .padding(end = 30.dp),
-                fontSize = 18.sp)
-            Text(text = "Cliques: $melhorCliques",
-                modifier = Modifier.padding(top = 70.dp)
-                    .padding(end = 75.dp),
-                fontSize = 18.sp)
+        Button(
+            modifier = Modifier.padding(top = 15.dp),
+            onClick = {mostrarRanking = true}
+        ) {
+            Text("Mostar Ranking")
         }
+
+        if (mostrarRanking){
+            AlertDialog(
+                onDismissRequest = {
+                    mostrarRanking = false
+                },
+                title = {
+                    Text("Rankings")
+                },
+                text = {
+                    Column {
+                        for (i in 0..9){
+                            val item = ranking.getOrNull(i)
+
+                            if(item != null){
+                                Text(
+                                    "${i + 1}° - ${item.nome} = Hora: ${item.hora} \nTempo: ${item.tempo} Cliques: ${item.cliques}",
+                                    fontSize = 12.sp
+                                )
+                            }else{
+                                Text("${i + 1}° - ====== ",
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {mostrarRanking = false}) {
+                        Text("Fechar")
+                    }
+                }
+            )
+        }
+
         Box(
-            modifier = Modifier.padding(top = 10.dp),
+            modifier = Modifier.padding(top = 15.dp),
             contentAlignment = Alignment.TopCenter,
         ){
             Text("Tentativas: $qntPartidas\n  Cliques: $cliques", fontSize = 18.sp)
