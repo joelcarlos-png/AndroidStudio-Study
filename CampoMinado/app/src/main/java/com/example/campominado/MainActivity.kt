@@ -25,6 +25,7 @@ import kotlin.concurrent.timer
 import kotlin.math.max
 import kotlin.random.Random
 import kotlinx.coroutines.delay
+import androidx.compose.material3.OutlinedTextField
 
 class MainActivity : ComponentActivity() {
     private var tamMatrix: Int = 10
@@ -39,6 +40,7 @@ class MainActivity : ComponentActivity() {
     private var melhorTempo by mutableStateOf(0)
     private var melhorCliques by mutableStateOf(0)
     private var primeiraVez by mutableStateOf(true)
+    private var qntBombas by mutableStateOf(15)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -70,6 +72,7 @@ class MainActivity : ComponentActivity() {
                             tempoSegundos = tempoSegundos,
                             melhorTempo = melhorTempo,
                             melhorCliques = melhorCliques,
+                            qntBombas = qntBombas,
                             onCliqueCelula = { linha, coluna ->
                                 revelarCelula(linha, coluna)
                                 refreshTick++
@@ -85,20 +88,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-
-    private fun expandirZeros(i: Int, j: Int) {
-        for (v1 in -1..1) {
-            for (v2 in -1..1) {
-                val viz1 = i + v1
-                val viz2 = j + v2
-                if (viz1 in 0..<tamMatrix && viz2 in 0..<tamMatrix) {
-                    if (!campoRevelado[viz1][viz2]) {
-                        revelarCelula(viz1, viz2)
-                    }
-                }
-            }
-        }
-    }
     fun verifGanhou() {
         val totalCelulas: Int = tamMatrix * tamMatrix
         val qntBomba = max(1, (totalCelulas * 15) / 100)
@@ -257,9 +246,12 @@ fun TelaCampoMinado(
     tempoSegundos : Int,
     melhorTempo : Int,
     melhorCliques : Int,
+    qntBombas : Int,
     onCliqueCelula: (Int, Int) -> Unit,
     onReiniciar: () -> Unit
 ) {
+
+    var entrada by remember { mutableStateOf("") }
 
     Column(
         modifier = Modifier
@@ -280,16 +272,16 @@ fun TelaCampoMinado(
                 .border(1.dp, Color.DarkGray),
             contentAlignment = Alignment.TopCenter,
         ){
-            val tempo = melhorTempo / 10
-            val minutos = tempo / 60
-            val segundos = tempo % 60
-            val milesegundos = tempoSegundos % 10
+            val tempom = melhorTempo / 10
+            val minutosm = tempom / 60
+            val segundosm = tempom % 60
+            val milesegundosm = melhorTempo % 10
             Text(text = "Melhor Tentativa",
                 modifier = Modifier.padding(top = 5.dp),
                 fontSize = 22.sp)
-            Text(text = "Tempo: %02d:%02d:%02d".format(minutos,segundos,milesegundos),
+            Text(text = "Tempo: %02d:%02d:%01d".format(minutosm,segundosm,milesegundosm),
                 modifier = Modifier.padding(top = 40.dp)
-                    .padding(end = 25.dp),
+                    .padding(end = 30.dp),
                 fontSize = 18.sp)
             Text(text = "Cliques: $melhorCliques",
                 modifier = Modifier.padding(top = 70.dp)
@@ -311,7 +303,7 @@ fun TelaCampoMinado(
             val minutos = tempo / 60
             val segundos = tempo % 60
             val milesegundos = tempoSegundos % 10
-            Text(text = "%02d:%02d:%02d".format(minutos,segundos,milesegundos), fontSize = 40.sp)
+            Text(text = "%02d:%02d:%01d".format(minutos,segundos,milesegundos), fontSize = 40.sp)
         }
 
         Spacer(modifier = Modifier.height(20.dp))
