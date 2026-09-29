@@ -42,7 +42,8 @@ class MainActivity : ComponentActivity() {
         val nome: String,
         val tempo: String,
         val tempoSeg : Int,
-        val cliques: Int
+        val cliques: Int,
+        val qntBombas: Int
     )
     private var tamMatrix: Int = 10
     private lateinit var campo : Array<IntArray>
@@ -57,6 +58,7 @@ class MainActivity : ComponentActivity() {
     private var mostrarDialogNome by mutableStateOf(false)
     private var nomeJogador by mutableStateOf("")
     private var horaAtual by mutableStateOf("")
+    private var qntBombas by mutableStateOf(15)
 
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -124,6 +126,11 @@ class MainActivity : ComponentActivity() {
                             tempoSegundos = tempoSegundos,
                             ranking = ranking,
                             horaAtual = horaAtual,
+                            qntBombas = qntBombas,
+                            onAlterarBombas = {
+                                novaQuantidade -> qntBombas = novaQuantidade
+                                initCampo()
+                                              },
                             onCliqueCelula = { linha, coluna ->
                                 revelarCelula(linha, coluna)
                             },
@@ -153,7 +160,8 @@ class MainActivity : ComponentActivity() {
                     nome = objeto.getString("nome"),
                     tempo = objeto.getString("tempo"),
                     tempoSeg = objeto.getInt("tempoSeg"),
-                    cliques = objeto.getInt("cliques")
+                    cliques = objeto.getInt("cliques"),
+                    qntBombas = objeto.getInt("qntBombas")
                 )
             )
         }
@@ -174,6 +182,7 @@ class MainActivity : ComponentActivity() {
                 put("tempoSeg", item.tempoSeg)
                 put("tempo", item.tempo)
                 put("cliques", item.cliques)
+                put("qntBombas", item.qntBombas)
             }
 
             listaJson.put(objeto)
@@ -199,7 +208,8 @@ class MainActivity : ComponentActivity() {
                 nome = nomeJogador.trim(),
                 tempo = tempof,
                 tempoSeg = tempoSegundos,
-                cliques = cliques
+                cliques = cliques,
+                qntBombas = qntBombas
             )
         )
 
@@ -216,7 +226,7 @@ class MainActivity : ComponentActivity() {
     @RequiresApi(Build.VERSION_CODES.O)
     fun verifGanhou() {
         val totalCelulas: Int = tamMatrix * tamMatrix
-        val qntBomba = max(1, (totalCelulas * 15) / 100)
+        val qntBomba = max(1, (totalCelulas * qntBombas) / 100)
         var qntRevelado = 0
         for (i in 0..<tamMatrix) {
             for (j in 0..<tamMatrix) {
@@ -292,7 +302,7 @@ class MainActivity : ComponentActivity() {
         this.campo = Array(tamMatrix) {IntArray(tamMatrix)}
         this.campoRevelado = Array(tamMatrix) {BooleanArray(tamMatrix)}
         val totalCelulas = tamMatrix * tamMatrix
-        val totalBombas = Math.max(1, (totalCelulas * 15) / 100)
+        val totalBombas = Math.max(1, (totalCelulas * qntBombas) / 100)
 
         var bombasColocadas = 0
         while (bombasColocadas < totalBombas){
@@ -368,9 +378,12 @@ fun TelaCampoMinado(
     tempoSegundos : Int,
     horaAtual : String,
     onCliqueCelula: (Int, Int) -> Unit,
-    onReiniciar: () -> Unit
+    onReiniciar: () -> Unit,
+    qntBombas : Int,
+    onAlterarBombas : (Int) -> Unit
 ) {
     var mostrarRanking by remember { mutableStateOf(false) }
+    var mostrarQntBombas by remember { mutableStateOf(false) }
 
 
     Column(
@@ -391,11 +404,21 @@ fun TelaCampoMinado(
             else -> Text("Campo Minado", fontSize = 34.sp, fontWeight = FontWeight.Bold)
         }
 
-        Button(
-            modifier = Modifier.padding(top = 15.dp),
-            onClick = {mostrarRanking = true}
-        ) {
-            Text("Mostar Ranking")
+        Box(
+
+        ){
+            Button(
+                modifier = Modifier.padding(top = 15.dp, end = 120.dp),
+                onClick = {mostrarRanking = true}
+            ) {
+                Text("Ranking")
+            }
+            Button(
+                modifier = Modifier.padding(top = 15.dp, start = 120.dp),
+                onClick = {mostrarQntBombas = true}
+            ) {
+                Text("Bombas")
+            }
         }
 
         if (mostrarRanking){
@@ -413,7 +436,7 @@ fun TelaCampoMinado(
 
                             if(item != null){
                                 Text(
-                                    "${i + 1}° - ${item.nome} = Hora: ${item.hora} \nTempo: ${item.tempo} Cliques: ${item.cliques}",
+                                    "${i + 1}° - ${item.nome} = Hora: ${item.hora} \nTempo: ${item.tempo} Cliques: ${item.cliques} Qnt. Bombas: ${item.qntBombas}",
                                     fontSize = 12.sp
                                 )
                             }else{
@@ -427,6 +450,38 @@ fun TelaCampoMinado(
                 confirmButton = {
                     TextButton(onClick = {mostrarRanking = false}) {
                         Text("Fechar")
+                    }
+                }
+            )
+        }
+
+        if (mostrarQntBombas){
+            var textoBombas by remember { mutableStateOf(qntBombas.toString()) }
+            val quantidade = textoBombas.toIntOrNull()
+            AlertDialog(
+                onDismissRequest = {mostrarQntBombas = false},
+                title = {
+                    Text("Quantidade de Bombas")
+                },
+                text = {
+                    OutlinedTextField(
+                        value = textoBombas,
+                        onValueChange = {textoBombas = it},
+                        label = {
+                            Text("Quantidade de Bombas")
+                        },
+                        singleLine = true
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        enabled = quantidade != null && quantidade in 1 until (tamMatrix * tamMatrix),
+                        onClick = {
+                            quantidade?.let { onAlterarBombas(it) }
+                            mostrarQntBombas = false
+                        }
+                    ) {
+                        Text("Salvar")
                     }
                 }
             )
