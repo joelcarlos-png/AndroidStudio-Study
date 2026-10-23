@@ -1,5 +1,6 @@
 package com.example.campominadoteste
 
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -47,9 +48,9 @@ class MainActivity : ComponentActivity() {
         val tamMatrix: Int,
         val tamMatrix2: Int
     )
-    private var tamMatrix2: Int = 15
-    private var tamMatrix: Int = 15
-    private var campo = Array(tamMatrix) {IntArray(tamMatrix2)}
+    private var tamMatrix2 by mutableStateOf(10)
+    private var tamMatrix by mutableStateOf(10)
+    private var campo by mutableStateOf(Array(tamMatrix) {IntArray(tamMatrix2)})
     private var campoRevelado by mutableStateOf(Array(tamMatrix) { BooleanArray(tamMatrix2) })
     private var perdeu by mutableStateOf(false)
     private var ganhou by mutableStateOf(false)
@@ -63,11 +64,30 @@ class MainActivity : ComponentActivity() {
     private var horaAtual by mutableStateOf("")
     private var qntBombas by mutableStateOf(15)
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        carregarParametrosIntent(intent)
+        initCampo()
+    }
+
+    private fun carregarParametrosIntent(intent: Intent?) {
+        if (intent == null) return
+        val largura = intent.getIntExtra("LARGURA", intent.getIntExtra("EXTRA_LARGURA", -1))
+        val altura = intent.getIntExtra("ALTURA", intent.getIntExtra("EXTRA_ALTURA", -1))
+        val bombas = intent.getIntExtra("BOMBAS", intent.getIntExtra("EXTRA_BOMBAS", -1))
+
+        if (largura > 0) tamMatrix2 = largura
+        if (altura > 0) tamMatrix = altura
+        if (bombas > 0) qntBombas = bombas
+    }
+
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        carregarParametrosIntent(intent)
         carregarJson()
         initCampo()
 
@@ -190,7 +210,7 @@ class MainActivity : ComponentActivity() {
                 put("cliques", item.cliques)
                 put("qntBombas", item.qntBombas)
                 put("tamMatrix", item.tamMatrix)
-                put("tamMatrix2", tamMatrix2)
+                put("tamMatrix2", item.tamMatrix2)
             }
 
             listaJson.put(objeto)
@@ -343,6 +363,7 @@ fun CelulaView(
     revelado: Boolean,
     jogoFinalizado: Boolean,
     modifier: Modifier = Modifier,
+    tamanhoFonte: androidx.compose.ui.unit.TextUnit = 16.sp,
     onClique: () -> Unit
 ) {
     val corFundo = when {
@@ -362,13 +383,13 @@ fun CelulaView(
     ) {
         if (revelado) {
             if (valor == -1) {
-                Text("💣", fontSize = 16.sp)
+                Text("💣", fontSize = tamanhoFonte)
             } else if (valor > 0) {
                 Text(
                     text = "$valor",
                     color = getCorNumero(valor),
                     fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
+                    fontSize = tamanhoFonte
                 )
             }
         }
@@ -399,37 +420,32 @@ fun TelaCampoMinado(
 
     Column(
         modifier = Modifier
-            .fillMaxSize()
-            .padding(12.dp),
+            .fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Box(
-            modifier = Modifier
-        ){
-            Text("$horaAtual", fontSize = 22.sp, color = Color.Red)
-        }
-        when {
-            perdeu -> Text("💥 VOCÊ PERDEU!", color = Color.Red, fontSize = 34.sp, fontWeight = FontWeight.Bold)
-            ganhou -> Text("🏆 PARABÉNS, VOCÊ GANHOU!", color = Color(0xFF388E3C), fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            else -> Text("Campo Minado", fontSize = 34.sp, fontWeight = FontWeight.Bold)
-        }
+        Row(
 
-        Box(
+        ) {
+            Box(
 
-        ){
-            Button(
-                modifier = Modifier.padding(top = 15.dp, end = 120.dp),
-                onClick = {mostrarRanking = true}
-            ) {
-                Text("Ranking")
+            ){
+                Button(
+                    modifier = Modifier.padding(top = 5.dp, end = 60.dp),
+                    onClick = {mostrarRanking = true}
+                ) {
+                    Text("Ranking")
+                }
+
             }
-            Button(
-                modifier = Modifier.padding(top = 15.dp, start = 120.dp),
-                onClick = {mostrarQntBombas = true}
-            ) {
-                Text("Bombas")
+            Box(){
+                val tempo = tempoSegundos / 10
+                val minutos = tempo / 60
+                val segundos = tempo % 60
+                val milesegundos = tempoSegundos % 10
+                Text("Tentativas: $qntPartidas\n Cliques: $cliques\n %02d:%02d:%01d".format(minutos,segundos,milesegundos), fontSize = 18.sp)
             }
+
         }
 
         if (mostrarRanking){
@@ -498,25 +514,13 @@ fun TelaCampoMinado(
             )
         }
 
-        Box(
-            modifier = Modifier.padding(top = 15.dp),
-            contentAlignment = Alignment.TopCenter,
-        ){
-            Text("Tentativas: $qntPartidas\n  Cliques: $cliques", fontSize = 18.sp)
-        }
-
-        Box(
-            modifier = Modifier.padding(top = 15.dp),
-            contentAlignment = Alignment.TopCenter
-        ){
-            val tempo = tempoSegundos / 10
-            val minutos = tempo / 60
-            val segundos = tempo % 60
-            val milesegundos = tempoSegundos % 10
-            Text(text = "%02d:%02d:%01d".format(minutos,segundos,milesegundos), fontSize = 40.sp)
-        }
-
         Spacer(modifier = Modifier.height(20.dp))
+
+        val tamanhoFonte = when {
+            tamMatrix2 > 20 -> 9.sp
+            tamMatrix2 > 12 -> 13.sp
+            else -> 16.sp
+        }
 
         Box(
             modifier = Modifier
@@ -535,6 +539,7 @@ fun TelaCampoMinado(
                                 valor = campo[i][j],
                                 revelado = campoRevelado[i][j],
                                 jogoFinalizado = perdeu || ganhou,
+                                tamanhoFonte = tamanhoFonte,
                                 modifier = Modifier
                                     .weight(1f)
                                     .fillMaxHeight(),

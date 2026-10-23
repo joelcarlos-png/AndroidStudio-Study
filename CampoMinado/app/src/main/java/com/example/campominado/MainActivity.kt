@@ -9,7 +9,10 @@ import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedTextField
@@ -45,9 +48,14 @@ class MainActivity : ComponentActivity() {
         val cliques: Int,
         val qntBombas: Int
     )
-    private var tamMatrix: Int = 10
+
+    private var numLinhas: Int = 10
+    private var numColunas: Int = 10
+    private var porcentagemBombas: Int = 15
+    private var qntBombasFixas: Int = -1
+
     private lateinit var campo : Array<IntArray>
-    private var campoRevelado by mutableStateOf(Array(tamMatrix) { BooleanArray(tamMatrix) })
+    private var campoRevelado by mutableStateOf(Array(10) { BooleanArray(10) })
     private var perdeu by mutableStateOf(false)
     private var ganhou by mutableStateOf(false)
     private var qntPartidas by mutableStateOf(value = 0)
@@ -64,6 +72,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // Lê os parâmetros enviados pela SelecaoFaseActivity (com valores padrão para caso seja aberta diretamente)
+        numLinhas = intent.getIntExtra("EXTRA_LINHAS", 10)
+        numColunas = intent.getIntExtra("EXTRA_COLUNAS", 10)
+        porcentagemBombas = intent.getIntExtra("EXTRA_PORCENTAGEM_BOMBAS", 15)
+        qntBombasFixas = intent.getIntExtra("EXTRA_BOMBAS_FIXAS", -1)
 
         carregarJson()
         initCampo()
@@ -116,7 +130,8 @@ class MainActivity : ComponentActivity() {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     Box(modifier = Modifier.padding(innerPadding)) {
                         TelaCampoMinado(
-                            tamMatrix = tamMatrix,
+                            numLinhas = numLinhas,
+                            numColunas = numColunas,
                             campo = campo,
                             campoRevelado = campoRevelado,
                             perdeu = perdeu,
@@ -127,15 +142,18 @@ class MainActivity : ComponentActivity() {
                             ranking = ranking,
                             horaAtual = horaAtual,
                             qntBombas = qntBombas,
-                            onAlterarBombas = {
-                                novaQuantidade -> qntBombas = novaQuantidade
+                            onAlterarBombas = { novaQuantidade ->
+                                qntBombasFixas = novaQuantidade
                                 initCampo()
-                                              },
+                            },
                             onCliqueCelula = { linha, coluna ->
                                 revelarCelula(linha, coluna)
                             },
                             onReiniciar = {
                                 initCampo()
+                            },
+                            onVoltar = {
+                                finish()
                             }
                         )
                     }
@@ -191,6 +209,7 @@ class MainActivity : ComponentActivity() {
         val arquivo = File(filesDir, "ranking.json")
         arquivo.writeText(listaJson.toString(2))
     }
+
     @RequiresApi(Build.VERSION_CODES.O)
     private fun registrarResultado(){
         val tempo = tempoSegundos / 10
@@ -225,15 +244,14 @@ class MainActivity : ComponentActivity() {
 
     @RequiresApi(Build.VERSION_CODES.O)
     fun verifGanhou() {
-        val totalCelulas: Int = tamMatrix * tamMatrix
-        val qntBomba = max(1, (totalCelulas * qntBombas) / 100)
+        val totalCelulas: Int = numLinhas * numColunas
         var qntRevelado = 0
-        for (i in 0..<tamMatrix) {
-            for (j in 0..<tamMatrix) {
-                if (campoRevelado[i][j] == true) qntRevelado++
+        for (i in 0..<numLinhas) {
+            for (j in 0..<numColunas) {
+                if (campoRevelado[i][j]) qntRevelado++
             }
         }
-        if (qntRevelado == (totalCelulas - qntBomba)) {
+        if (qntRevelado == (totalCelulas - qntBombas)) {
             ganhou = true
             qntPartidas++
 
@@ -247,12 +265,12 @@ class MainActivity : ComponentActivity() {
         cliques++
         iniciou = true
         if (perdeu || ganhou) return
-        if (linha !in 0..<tamMatrix || coluna !in 0..<tamMatrix) return
+        if (linha !in 0..<numLinhas || coluna !in 0..<numColunas) return
         if (campoRevelado[linha][coluna]) return
         val novaMatriz = campoRevelado.map { it.clone() }.toTypedArray()
 
         fun abrir(l: Int, c: Int) {
-            if (l !in 0..<tamMatrix || c !in 0..<tamMatrix) return
+            if (l !in 0..<numLinhas || c !in 0..<numColunas) return
             if (novaMatriz[l][c]) return
             novaMatriz[l][c] = true
             val v = campo[l][c]
@@ -274,14 +292,14 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun colocarNums(){
-        for (i in 0..< tamMatrix) {
-            for (j in 0..< tamMatrix) {
+        for (i in 0..< numLinhas) {
+            for (j in 0..< numColunas) {
                 if (campo[i][j] != -1) {
                     for (v1 in -1..1) {
                         for (v2 in -1..1) {
                             val viz1 = i - v1
                             val viz2 = j - v2
-                            if (viz1 in 0..<tamMatrix && viz2 in 0..<tamMatrix) {
+                            if (viz1 in 0..<numLinhas && viz2 in 0..<numColunas) {
                                 if (campo[viz1][viz2] == -1) {
                                     campo[i][j]++
                                 }
@@ -299,15 +317,20 @@ class MainActivity : ComponentActivity() {
         iniciou = false
         this.perdeu = false
         this.ganhou = false
-        this.campo = Array(tamMatrix) {IntArray(tamMatrix)}
-        this.campoRevelado = Array(tamMatrix) {BooleanArray(tamMatrix)}
-        val totalCelulas = tamMatrix * tamMatrix
-        val totalBombas = Math.max(1, (totalCelulas * qntBombas) / 100)
+        this.campo = Array(numLinhas) { IntArray(numColunas) }
+        this.campoRevelado = Array(numLinhas) { BooleanArray(numColunas) }
+        val totalCelulas = numLinhas * numColunas
+        val totalBombas = if (qntBombasFixas > 0) {
+            qntBombasFixas.coerceIn(1, totalCelulas - 1)
+        } else {
+            max(1, (totalCelulas * porcentagemBombas) / 100)
+        }
+        this.qntBombas = totalBombas
 
         var bombasColocadas = 0
         while (bombasColocadas < totalBombas){
-            val linha = Random.nextInt(tamMatrix);
-            val coluna = Random.nextInt(tamMatrix);
+            val linha = Random.nextInt(numLinhas)
+            val coluna = Random.nextInt(numColunas)
 
             if(campo[linha][coluna] == 0){
                 campo[linha][coluna] = -1
@@ -367,7 +390,8 @@ fun CelulaView(
 
 @Composable
 fun TelaCampoMinado(
-    tamMatrix: Int,
+    numLinhas: Int,
+    numColunas: Int,
     campo: Array<IntArray>,
     campoRevelado: Array<BooleanArray>,
     perdeu: Boolean,
@@ -380,11 +404,11 @@ fun TelaCampoMinado(
     onCliqueCelula: (Int, Int) -> Unit,
     onReiniciar: () -> Unit,
     qntBombas : Int,
-    onAlterarBombas : (Int) -> Unit
+    onAlterarBombas : (Int) -> Unit,
+    onVoltar: () -> Unit = {}
 ) {
     var mostrarRanking by remember { mutableStateOf(false) }
     var mostrarQntBombas by remember { mutableStateOf(false) }
-
 
     Column(
         modifier = Modifier
@@ -396,7 +420,7 @@ fun TelaCampoMinado(
         Box(
             modifier = Modifier
         ){
-            Text("$horaAtual", fontSize = 22.sp, color = Color.Red)
+            Text(horaAtual, fontSize = 22.sp, color = Color.Red)
         }
         when {
             perdeu -> Text("💥 VOCÊ PERDEU!", color = Color.Red, fontSize = 34.sp, fontWeight = FontWeight.Bold)
@@ -404,19 +428,17 @@ fun TelaCampoMinado(
             else -> Text("Campo Minado", fontSize = 34.sp, fontWeight = FontWeight.Bold)
         }
 
-        Box(
-
-        ){
-            Button(
-                modifier = Modifier.padding(top = 15.dp, end = 120.dp),
-                onClick = {mostrarRanking = true}
-            ) {
+        Row(
+            modifier = Modifier.padding(top = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(onClick = onVoltar) {
+                Text("Fases")
+            }
+            Button(onClick = { mostrarRanking = true }) {
                 Text("Ranking")
             }
-            Button(
-                modifier = Modifier.padding(top = 15.dp, start = 120.dp),
-                onClick = {mostrarQntBombas = true}
-            ) {
+            Button(onClick = { mostrarQntBombas = true }) {
                 Text("Bombas")
             }
         }
@@ -475,7 +497,7 @@ fun TelaCampoMinado(
                 },
                 confirmButton = {
                     TextButton(
-                        enabled = quantidade != null && quantidade in 1 until (tamMatrix * tamMatrix),
+                        enabled = quantidade != null && quantidade in 1 until (numLinhas * numColunas),
                         onClick = {
                             quantidade?.let { onAlterarBombas(it) }
                             mostrarQntBombas = false
@@ -488,39 +510,50 @@ fun TelaCampoMinado(
         }
 
         Box(
-            modifier = Modifier.padding(top = 15.dp),
+            modifier = Modifier.padding(top = 10.dp),
             contentAlignment = Alignment.TopCenter,
         ){
-            Text("Tentativas: $qntPartidas\n  Cliques: $cliques", fontSize = 18.sp)
+            Text("Tentativas: $qntPartidas | Cliques: $cliques | Bombas: $qntBombas", fontSize = 16.sp)
         }
 
         Box(
-            modifier = Modifier.padding(top = 15.dp),
+            modifier = Modifier.padding(top = 10.dp),
             contentAlignment = Alignment.TopCenter
         ){
             val tempo = tempoSegundos / 10
             val minutos = tempo / 60
             val segundos = tempo % 60
             val milesegundos = tempoSegundos % 10
-            Text(text = "%02d:%02d:%01d".format(minutos,segundos,milesegundos), fontSize = 40.sp)
+            Text(text = "%02d:%02d:%01d".format(minutos,segundos,milesegundos), fontSize = 36.sp)
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        for (i in 0 until tamMatrix) {
-            Row() {
-                for (j in 0 until tamMatrix) {
-                    CelulaView(
-                        valor = campo[i][j],
-                        revelado = campoRevelado[i][j],
-                        jogoFinalizado = perdeu || ganhou,
-                        onClique = { onCliqueCelula(i, j) }
-                    )
+        // Contêiner com rolagem horizontal e vertical para suportar tabuleiros de qualquer tamanho (ex: 30x16)
+        Box(
+            modifier = Modifier
+                .weight(1f, fill = false)
+                .horizontalScroll(rememberScrollState())
+                .verticalScroll(rememberScrollState()),
+            contentAlignment = Alignment.Center
+        ) {
+            Column {
+                for (i in 0 until numLinhas) {
+                    Row {
+                        for (j in 0 until numColunas) {
+                            CelulaView(
+                                valor = campo[i][j],
+                                revelado = campoRevelado[i][j],
+                                jogoFinalizado = perdeu || ganhou,
+                                onClique = { onCliqueCelula(i, j) }
+                            )
+                        }
+                    }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         Button(onClick = onReiniciar) {
             Text("Novo Jogo")

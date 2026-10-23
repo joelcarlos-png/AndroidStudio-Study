@@ -11,8 +11,10 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.CampoMinado">
+
+        <!-- Activity inicial: Seleção de Fase -->
         <activity
-            android:name=".MainActivity"
+            android:name=".SelecaoFaseActivity"
             android:exported="true"
             android:label="@string/app_name"
             android:theme="@style/Theme.CampoMinado"
@@ -23,6 +25,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Activity do Jogo -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="false"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.CampoMinado"
+            android:windowSoftInputMode="adjustResize" />
     </application>
 
 </manifest>
