@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">gamedaveia</string>
+    <string name="title_activity_telasembot">telasembot</string>
+    <string name="title_activity_telacombot">telacombot</string>
+</resources>
